@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Lymphatic Graph Annotator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#fff;color:#1e293b;font-family:'Inter',system-ui,sans-serif;font-size:13px}
+
+/* ══ UPLOAD SCREEN ═══════════════════════════════════════════ */
+#upload-screen{
+  position:fixed;inset:0;z-index:999;background:#fff;
+  display:flex;align-items:center;justify-content:center;
+}
+.upload-card{
+  background:#fff;border:1px solid #e2e8f0;border-radius:10px;
+  padding:36px 40px;width:500px;max-width:94vw;
+  box-shadow:0 4px 24px rgba(0,0,0,.07);
+}
+.upload-card h1{font-size:16px;font-weight:700;color:#0f172a;margin-bottom:4px}
+.upload-card p{font-size:12px;color:#94a3b8;margin-bottom:28px}
+
+.file-zone{
+  border:2px dashed #e2e8f0;border-radius:8px;padding:18px 20px;
+  margin-bottom:14px;cursor:pointer;transition:all .15s;position:relative;
+  background:#fafafa;
+}
+.file-zone:hover{border-color:#94a3b8;background:#f8fafc}
+.file-zone.loaded{border-color:#16a34a;border-style:solid;background:#f0fdf4}
+.fz-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.fz-label{font-size:10px;font-weight:700;letter-spacing:.06em;color:#64748b;text-transform:uppercase}
+.fz-icon{font-size:20px;color:#cbd5e1}
+.file-zone.loaded .fz-icon{color:#16a34a}
+.fz-name{font-size:12px;font-weight:500;color:#334155}
+.fz-name.placeholder{color:#cbd5e1;font-style:italic}
+.fz-status{font-size:11px;margin-top:5px;min-height:14px;color:#16a34a}
+.fz-status.err{color:#dc2626}
+.file-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+#btn-load{
+  width:100%;padding:11px;font-size:13px;font-weight:700;
+  background:#0f172a;color:#fff;border:none;border-radius:6px;
+  cursor:pointer;margin-top:6px;transition:background .15s;letter-spacing:.02em;
+}
+#btn-load:hover{background:#1e293b}
+#btn-load:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+#load-err{font-size:11px;color:#dc2626;margin-top:8px;min-height:14px}
+
+/* ══ MAIN APP ════════════════════════════════════════════════ */
+#app{display:none;height:100vh;width:100vw;flex-direction:row}
+
+/* sidebar */
+#sidebar{
+  width:268px;min-width:268px;height:100%;background:#fafafa;
+  border-right:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden;
+}
+#sb-header{padding:14px 16px 12px;border-bottom:1px solid #e2e8f0;background:#fff}
+#sb-header h1{font-size:13px;font-weight:700;color:#0f172a}
+#sb-header p{font-size:11px;color:#94a3b8;margin-top:2px}
+
+#region-list{flex:1;overflow-y:auto;padding:6px 0}
+#region-list::-webkit-scrollbar{width:4px}
+#region-list::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:2px}
+.grp-title{padding:10px 16px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;color:#94a3b8;text-transform:uppercase}
+.region-item{
+  padding:6px 10px 6px 16px;cursor:pointer;display:flex;align-items:center;
+  gap:8px;border-left:3px solid transparent;transition:background .1s;
+}
+.region-item:hover{background:#f1f5f9}
+.region-item.active{background:#eff6ff;border-left-color:var(--rc)}
+.ri-swatch{width:13px;height:13px;border-radius:3px;flex-shrink:0;background:var(--rc);opacity:.4}
+.region-item.has-nodes .ri-swatch{opacity:1}
+.ri-label{flex:1;font-size:12px;font-weight:500;color:#334155}
+.ri-count{font-size:10px;font-weight:700;color:#fff;background:var(--rc);border-radius:10px;padding:1px 7px;display:none}
+.region-item.has-nodes .ri-count{display:inline}
+.ri-redo{background:none;border:1px solid #e2e8f0;border-radius:3px;color:#94a3b8;cursor:pointer;font-size:10px;padding:2px 6px;flex-shrink:0;transition:all .1s;display:none}
+.region-item.has-nodes .ri-redo{display:inline}
+.ri-redo:hover{background:#fee2e2;border-color:#fca5a5;color:#ef4444}
+
+/* controls */
+#controls{padding:12px 16px;border-top:1px solid #e2e8f0;background:#fff}
+.ctrl-lbl{font-size:10px;font-weight:700;letter-spacing:.06em;color:#94a3b8;text-transform:uppercase;margin-bottom:7px}
+.btn-row{display:flex;gap:6px;margin-bottom:6px}
+.btn{flex:1;padding:7px 10px;font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;border:none;transition:all .12s;letter-spacing:.02em;white-space:nowrap}
+.btn-rotate {background:#dbeafe;color:#1d4ed8}.btn-rotate:hover{background:#bfdbfe}
+.btn-lasso  {background:#ede9fe;color:#6d28d9}.btn-lasso:hover{background:#ddd6fe}
+.btn-fill   {background:#dcfce7;color:#15803d}.btn-fill:hover{background:#bbf7d0}
+.btn-assign {background:#e0e7ff;color:#4338ca}.btn-assign:hover{background:#c7d2fe}
+.btn-clear  {background:#f1f5f9;color:#475569}.btn-clear:hover{background:#e2e8f0}
+.btn-undo   {background:#fee2e2;color:#b91c1c}.btn-undo:hover{background:#fecaca}
+.btn-duct   {background:#d1fae5;color:#065f46}.btn-duct:hover{background:#a7f3d0}
+.btn-missed {background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}.btn-missed:hover{background:#ffedd5}
+.btn-export {background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;width:100%;margin-top:3px}.btn-export:hover{background:#dcfce7}
+.btn.active-mode{outline:2px solid currentColor;outline-offset:1px}
+#sel-info{margin-top:8px;font-size:11px;color:#64748b;min-height:16px;line-height:1.4}
+
+/* progress */
+#progress{padding:10px 16px 12px;border-top:1px solid #e2e8f0;background:#fff}
+.prog-lbl{font-size:10px;font-weight:700;letter-spacing:.06em;color:#94a3b8;text-transform:uppercase;margin-bottom:6px}
+.prog-wrap{height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-bottom:5px}
+.prog-bar{height:100%;background:linear-gradient(90deg,#3b82f6,#06b6d4);border-radius:3px;width:0%;transition:width .3s}
+.prog-text{font-size:11px;color:#64748b;font-weight:500}
+
+/* main viewport */
+#main{flex:1;height:100%;display:flex;flex-direction:column}
+#toolbar{padding:7px 14px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tb-sep{width:1px;height:20px;background:#e2e8f0}
+.tb-lbl{font-size:10px;color:#94a3b8;font-weight:700;letter-spacing:.05em}
+.tb-btn{padding:4px 12px;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid #e2e8f0;background:#fff;color:#475569;transition:all .12s}
+.tb-btn:hover{background:#f8fafc;border-color:#cbd5e1;color:#1e293b}
+#mode-badge{padding:3px 10px;font-size:10px;font-weight:700;border-radius:12px;letter-spacing:.05em;text-transform:uppercase}
+.badge-rotate{background:#dbeafe;color:#1d4ed8}
+.badge-lasso{background:#ede9fe;color:#6d28d9}
+
+#canvas-wrap{flex:1;position:relative;overflow:hidden;background:#f8fafc}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+#lasso-overlay{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+#lasso-overlay.drawing{pointer-events:all;cursor:crosshair}
+#hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.95);border:1px solid #e2e8f0;padding:5px 16px;border-radius:20px;font-size:11px;color:#64748b;pointer-events:none;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+#statusbar{padding:5px 14px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:16px;font-size:10px;color:#94a3b8}
+#statusbar b{color:#475569;font-weight:600}
+
+/* missed panel */
+#missed-panel{position:fixed;top:50%;right:20px;transform:translateY(-50%);width:300px;max-height:72vh;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.12);display:none;flex-direction:column;z-index:200;overflow:hidden}
+#missed-panel.open{display:flex}
+#mp-hdr{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between}
+#mp-hdr h2{font-size:12px;font-weight:700;color:#0f172a}
+#mp-close{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:0;line-height:1}
+#mp-close:hover{color:#475569}
+#mp-summary{padding:8px 16px;font-size:11px;color:#64748b;border-bottom:1px solid #f1f5f9;background:#fafafa}
+#mp-list{flex:1;overflow-y:auto;padding:4px 0}
+.mc-row{padding:8px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;border-left:3px solid transparent;transition:background .1s}
+.mc-row:hover{background:#f8fafc}
+.mc-row.focused{background:#eff6ff;border-left-color:var(--cc)}
+.mc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;background:var(--cc)}
+.mc-info{flex:1}
+.mc-title{font-size:12px;font-weight:600;color:#334155}
+.mc-sub{font-size:10px;color:#94a3b8;margin-top:1px}
+.mc-go{padding:3px 9px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;border:1px solid #e2e8f0;background:#fff;color:#475569;flex-shrink:0;transition:all .1s}
+.mc-go:hover{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+#mp-footer{padding:10px 16px;border-top:1px solid #f1f5f9;display:flex;gap:8px;background:#fafafa}
+.mpf{flex:1;padding:6px 8px;font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;border:none;transition:all .12s}
+.mpf-rerun{background:#dbeafe;color:#1d4ed8}.mpf-rerun:hover{background:#bfdbfe}
+.mpf-iso{background:#f1f5f9;color:#475569}.mpf-iso:hover{background:#e2e8f0}
+.mpf-iso.on{background:#fef9c3;color:#854d0e}
+
+#tt{position:fixed;background:#fff;border:1px solid #e2e8f0;padding:5px 10px;font-size:11px;color:#334155;pointer-events:none;border-radius:5px;display:none;z-index:300;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+
+/* region focus ring overlay */
+#focus-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block;z-index:10}
+#focus-label{
+  position:absolute;pointer-events:none;z-index:11;
+  background:#fff;border:1px solid #e2e8f0;border-radius:20px;
+  padding:4px 14px;font-size:11px;font-weight:700;color:#1e293b;
+  box-shadow:0 2px 8px rgba(0,0,0,.10);
+  transform:translateX(-50%);white-space:nowrap;display:none;
+}
+
+/* ══ GROUP FILTER TABS ═══════════════════════════════════════ */
+#group-filter-bar{
+  padding:6px 8px 5px;border-bottom:1px solid #e2e8f0;background:#fff;
+  display:flex;gap:4px;flex-wrap:wrap;
+}
+.gft{
+  padding:3px 9px;font-size:10px;font-weight:700;border-radius:10px;
+  cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;
+  transition:all .12s;letter-spacing:.02em;white-space:nowrap;
+}
+.gft:hover{background:#f1f5f9;border-color:#cbd5e1;color:#334155}
+.gft.gft-active{background:#0f172a;color:#fff;border-color:#0f172a}
+
+/* ══ DUAL PROGRESS ═══════════════════════════════════════════ */
+.prog-row{margin-bottom:7px}
+.prog-row:last-child{margin-bottom:0}
+.prog-sublbl{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
+#prog-lbl-organ{color:#3b82f6}
+#prog-lbl-lymph{color:#ff0066}
+.prog-bar-lymph{height:100%;border-radius:3px;width:0%;transition:width .3s;background:linear-gradient(90deg,#ff0000,#ff6666)}
+</style>
+</head>
+<body>
+
+<!-- ══ UPLOAD SCREEN ════════════════════════════════════════ -->
+<div id="upload-screen">
+  <div class="upload-card">
+    <h1>Lymphatic Graph Annotator</h1>
+    <p>Load your graph CSV files to begin — works with any vertices + edges format</p>
+
+    <div class="file-zone" id="zone-v">
+      <input type="file" id="file-v" accept=".csv,.txt" onchange="loadFile('v',this)">
+      <div class="fz-top">
+        <span class="fz-label">Vertices file</span>
+        <span class="fz-icon" id="icon-v">⬡</span>
+      </div>
+      <div class="fz-name placeholder" id="name-v">X, Y, Z, isLymphNode …</div>
+      <div class="fz-status" id="status-v"></div>
+    </div>
+
+    <div class="file-zone" id="zone-e">
+      <input type="file" id="file-e" accept=".csv,.txt" onchange="loadFile('e',this)">
+      <div class="fz-top">
+        <span class="fz-label">Edges file</span>
+        <span class="fz-icon" id="icon-e">⬡</span>
+      </div>
+      <div class="fz-name placeholder" id="name-e">From, To …</div>
+      <div class="fz-status" id="status-e"></div>
+    </div>
+
+    <!-- Optional: pre-load annotations CSV -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:#64748b;text-transform:uppercase;margin-bottom:6px">
+        Annotations CSV <span style="font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0">(optional — pre-fills region labels)</span>
+      </div>
+      <div class="file-zone" id="zone-a" style="margin-bottom:0">
+        <input type="file" id="file-a" accept=".csv" onchange="loadAnnotations(this)">
+        <div class="fz-top">
+          <span class="fz-label">Annotations file</span>
+          <span class="fz-icon" id="icon-a">⬡</span>
+        </div>
+        <div class="fz-name placeholder" id="name-a">node_number, is_lymph_node, region_col …</div>
+        <div class="fz-status" id="status-a"></div>
+      </div>
+    </div>
+
+    <button id="btn-load" disabled onclick="initGraph()">Load &amp; Build Graph</button>
+    <div id="load-err"></div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══════════════════════════════════════════════ -->
+<div id="app">
+  <aside id="sidebar">
+    <div id="sb-header">
+      <h1>Lymph Graph Annotator</h1>
+      <p id="graph-stats">—</p>
+    </div>
+    <div id="region-list"></div>
+    <div id="controls">
+      <div class="ctrl-lbl">View Mode</div>
+      <div class="btn-row">
+        <button class="btn btn-rotate active-mode" id="btn-rotate" onclick="setMode('rotate')">⟳ Perspective</button>
+        <button class="btn btn-lasso"              id="btn-lasso"  onclick="setMode('lasso')">◌ Draw Lasso</button>
+      </div>
+      <div class="ctrl-lbl" style="margin-top:10px">Annotate</div>
+      <div class="btn-row">
+        <button class="btn btn-assign" onclick="doAssign()" style="font-size:12px;padding:8px 10px">✔ Assign Selected</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-clear"  onclick="doClear()">Clear Lasso</button>
+        <button class="btn btn-undo"   onclick="doUndo()">↩ Undo</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-missed" style="flex:1" onclick="openMissed()">🔍 Find Missed Nodes</button>
+      </div>
+      <button class="btn btn-export" onclick="doExport()">⬇ Export CSV</button>
+      <button onclick="openRM()" style="width:100%;margin-top:5px;padding:6px 10px;font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;transition:all .12s;letter-spacing:.02em" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">⚙ Manage Regions</button>
+      <div id="sel-info">Pick a region, then Draw Lasso</div>
+    </div>
+    <div id="progress">
+      <div class="prog-row">
+        <div class="prog-sublbl" id="prog-lbl-organ">Non-Lymph Nodes Assigned</div>
+        <div class="prog-wrap"><div class="prog-bar" id="prog-bar"></div></div>
+        <div class="prog-text" id="prog-text">0 / 0 nodes</div>
+      </div>
+      <div class="prog-row">
+        <div class="prog-sublbl" id="prog-lbl-lymph">Lymph → Organ Region</div>
+        <div class="prog-wrap"><div class="prog-bar-lymph" id="prog-bar-lymph"></div></div>
+        <div class="prog-text" id="prog-text-lymph">0 / 0 organ-annotated</div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div id="toolbar">
+      <span class="tb-lbl">CAMERA</span>
+      <button class="tb-btn" onclick="resetCam()">Front</button>
+      <button class="tb-btn" onclick="sideView()">Side</button>
+      <button class="tb-btn" onclick="topView()">Top</button>
+      <div class="tb-sep"></div>
+      <span class="tb-lbl">CONSTRAIN</span>
+      <button class="tb-btn" id="btn-xy" onclick="setConstraint('xy')" title="Rotate locked to XY plane">XY</button>
+      <button class="tb-btn" id="btn-yz" onclick="setConstraint('yz')" title="Rotate locked to YZ plane">YZ</button>
+      <button class="tb-btn" id="btn-zx" onclick="setConstraint('zx')" title="Rotate locked to ZX plane">ZX</button>
+      <button class="tb-btn" id="btn-free" onclick="setConstraint('free')" title="Free rotation (perspective)" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8">Free</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="toggleEdges()" id="btn-edges">Edges ON</button>
+      <div class="tb-sep"></div>
+      <span id="mode-badge" class="badge-rotate">Perspective</span>
+      <span id="lasso-ctr" style="font-size:10px;color:#6d28d9;font-weight:700;display:none"></span>
+    </div>
+    <div id="canvas-wrap">
+      <canvas id="gl"></canvas>
+      <canvas id="lasso-overlay"></canvas>
+      <canvas id="focus-overlay"></canvas>
+      <div id="focus-label"></div>
+      <div id="hint">Left-drag: Rotate &nbsp;·&nbsp; Right-drag: Pan &nbsp;·&nbsp; Scroll: Zoom</div>
+    </div>
+    <div id="statusbar">
+      <span>Nodes <b id="st-n">0</b></span>
+      <span>Assigned <b id="st-a">0</b></span>
+      <span>Lasso pts <b id="st-lp">0</b></span>
+      <span>Selected <b id="st-s">0</b></span>
+      <span>Region <b id="st-r">—</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MISSED NODES PANEL ═══════════════════════════════════ -->
+<div id="missed-panel">
+  <div id="mp-hdr">
+    <h2>Missed Nodes</h2>
+    <button id="mp-close" onclick="closeMissed()">✕</button>
+  </div>
+  <div id="mp-summary">Click Re-analyse to find unassigned clusters</div>
+  <div id="mp-list"></div>
+  <div id="mp-footer">
+    <button class="mpf mpf-rerun" onclick="runMissed()">↻ Re-analyse</button>
+    <button class="mpf mpf-iso"   onclick="toggleIso()" id="btn-iso">👁 Isolate</button>
+  </div>
+</div>
+
+<!-- ══ REGION MANAGER MODAL ══════════════════════════════════ -->
+<div id="rm-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(15,23,42,.45);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:520px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.18)">
+    <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:14px;font-weight:700;color:#0f172a">Manage Regions</span>
+      <button onclick="closeRM()" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:0;line-height:1">✕</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:12px 20px" id="rm-list"></div>
+    <!-- Add new region -->
+    <div style="padding:12px 20px;border-top:1px solid #f1f5f9;background:#fafafa;border-radius:0 0 10px 10px">
+      <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Add New Region</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="rm-new-id"    placeholder="variable_name (CSV column)" style="flex:2;min-width:140px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;font-family:monospace">
+        <input id="rm-new-label" placeholder="Display label" style="flex:1;min-width:100px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px">
+        <input id="rm-new-group" placeholder="Group" style="flex:1;min-width:80px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px">
+        <input id="rm-new-color" type="color" value="#00aaff" style="width:36px;height:34px;border:1px solid #e2e8f0;border-radius:5px;cursor:pointer;padding:2px">
+        <button onclick="addRegion()" style="padding:6px 14px;background:#0f172a;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">+ Add</button>
+      </div>
+      <div id="rm-err" style="font-size:11px;color:#dc2626;margin-top:6px;min-height:14px"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tt"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// CSV PARSER — handles comma/space/tab, # headers, BOM, CRLF
+// ═══════════════════════════════════════════════════════════
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+  const commentLines=[], dataLines=[];
+  for (const l of lines) {
+    const t=l.trim(); if(!t) continue;
+    if(t.startsWith('#')) commentLines.push(t.replace(/^#+\s*/,''));
+    else dataLines.push(t);
+  }
+  if(!dataLines.length) return null;
+  const first=dataLines[0];
+  const sep = first.includes('\t') ? '\t' : first.includes(',') ? ',' : null;
+  const split = l => sep ? l.split(sep) : l.trim().split(/\s+/);
+  let headers, rows;
+  if(commentLines.length){
+    headers=split(commentLines[commentLines.length-1]).map(h=>h.trim());
+    rows=dataLines;
+  } else {
+    headers=split(dataLines[0]).map(h=>h.trim());
+    rows=dataLines.slice(1);
+  }
+  const parsed=rows.map(l=>{const v=split(l),o={};headers.forEach((h,i)=>o[h]=(v[i]||'').trim());return o;})
+                   .filter(r=>Object.values(r).some(v=>v!==''));
+  return {headers,rows:parsed};
+}
+function findCol(headers,cands){
+  const lmap={};headers.forEach(h=>lmap[h.toLowerCase()]=h);
+  for(const c of cands) if(lmap[c.toLowerCase()]) return lmap[c.toLowerCase()];
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILE LOADING
+// ═══════════════════════════════════════════════════════════
+const files={v:null,e:null};
+
+function loadFile(which,input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const text=ev.target.result;
+    const parsed=parseCSV(text);
+    if(!parsed){ setFileErr(which,'Could not parse file'); return; }
+    if(which==='v'){
+      const cx=findCol(parsed.headers,['X','pos_x','posx','coord_x','x_mm','PosX']);
+      const cy=findCol(parsed.headers,['Y','pos_y','posy','coord_y','y_mm','PosY']);
+      const cz=findCol(parsed.headers,['Z','pos_z','posz','coord_z','z_mm','PosZ']);
+      const cl=findCol(parsed.headers,['isLymphNode','islymphnode','lymph','is_lymph','label','type','node_type']);
+      if(!cx||!cy||!cz){ setFileErr('v',`Can't find X/Y/Z in: [${parsed.headers.join(', ')}]`); return; }
+      files.v={parsed,cx,cy,cz,cl};
+      setFileOk('v',file.name,`✓ ${parsed.rows.length} nodes  ·  X=${cx}  Y=${cy}  Z=${cz}${cl?' · lymph='+cl:''}`);
+    } else {
+      const cf=findCol(parsed.headers,['From','from','source','node1','start','from_node']);
+      const ct=findCol(parsed.headers,['To','to','target','node2','end','to_node']);
+      if(!cf||!ct){ setFileErr('e',`Can't find From/To in: [${parsed.headers.join(', ')}]`); return; }
+      files.e={parsed,cf,ct};
+      setFileOk('e',file.name,`✓ ${parsed.rows.length} edges  ·  from=${cf}  to=${ct}`);
+    }
+    document.getElementById('btn-load').disabled=!(files.v&&files.e);
+    document.getElementById('load-err').textContent='';
+  };
+  reader.readAsText(file);
+}
+function setFileOk(w,name,msg){
+  document.getElementById('name-'+w).textContent=name;
+  document.getElementById('name-'+w).classList.remove('placeholder');
+  document.getElementById('zone-'+w).classList.add('loaded');
+  document.getElementById('icon-'+w).textContent='✓';
+  const s=document.getElementById('status-'+w);
+  s.textContent=msg; s.classList.remove('err');
+}
+function setFileErr(w,msg){
+  const s=document.getElementById('status-'+w);
+  s.textContent='✗ '+msg; s.classList.add('err');
+  document.getElementById('zone-'+w).classList.remove('loaded');
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGIONS
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_REGIONS=[
+  {id:'lymph_node',                         label:'Lymph Node',              color:'#ff0000', group:'Lymph Nodes'},
+  {id:'upper_limb_fingertip',               label:'Fingertip',               color:'#ccff33', group:'Upper Limb'},
+  {id:'upper_limb_superficial_collector',   label:'Superficial Collector',   color:'#99dd00', group:'Upper Limb'},
+  {id:'upper_limb_deep_collector',          label:'Deep Collector',          color:'#55aa00', group:'Upper Limb'},
+  {id:'lower_limb_pelvic_region',           label:'Pelvic Region',           color:'#9900ff', group:'Lower Limb'},
+  {id:'upper_limb_axillary',                label:'Axillary',                color:'#226600', group:'Upper Limb'},
+  {id:'thoracic_trunk_subclavian',          label:'Subclavian',              color:'#0099ff', group:'Thoracic Trunk'},
+  {id:'lower_limb_foot_dorsum',             label:'Foot Dorsum',             color:'#00ffcc', group:'Lower Limb'},
+  {id:'lower_limb_ankle_superficial',       label:'Ankle Superficial',       color:'#00ee88', group:'Lower Limb'},
+  {id:'lower_limb_superficial_collector',   label:'Superficial Collector',   color:'#00cc44', group:'Lower Limb'},
+  {id:'lower_limb_deep_collector',          label:'Deep Collector',          color:'#009922', group:'Lower Limb'},
+  {id:'lower_limb_lumbar_region',           label:'Lumbar Region',           color:'#007700', group:'Lower Limb'},
+  {id:'head_neck_scalp',                    label:'Scalp',                   color:'#ffee00', group:'Head & Neck'},
+  {id:'head_neck_superficial_cervical',     label:'Superficial Cervical',    color:'#ffcc00', group:'Head & Neck'},
+  {id:'head_neck_deep_cervical',            label:'Deep Cervical',           color:'#ff9900', group:'Head & Neck'},
+  {id:'head_neck_trunk_jugular',            label:'Jugular Trunk',           color:'#ff7700', group:'Head & Neck'},
+  {id:'thoracic_wall_parasternal',          label:'Parasternal',             color:'#ff4400', group:'Thoracic Wall'},
+  {id:'diaphragmatic',                      label:'Diaphragmatic',           color:'#ff0000', group:'Thoracic Wall'},
+  {id:'pulmonary_trunk_bronchomediastinal', label:'Bronchomediastinal',      color:'#00ddff', group:'Pulmonary'},
+  {id:'pulmonary_lung_parenchyma',          label:'Lung Parenchyma',         color:'#0099dd', group:'Pulmonary'},
+  {id:'gi_mesenteric_collector',            label:'Mesenteric Collector',    color:'#88ff00', group:'GI'},
+  {id:'gi_digestive_system',                label:'Digestive System',        color:'#55cc00', group:'GI'},
+  {id:'hepatic_interstitium',               label:'Hepatic Interstitium',    color:'#ffaa44', group:'Organs'},
+  {id:'renal_interstitium',                 label:'Renal Interstitium',      color:'#ff8800', group:'Organs'},
+  {id:'spleen',                             label:'Spleen',                  color:'#a855f7', group:'Organs'},
+  {id:'cisterna_chyli_segment',             label:'Cisterna Chyli',          color:'#ff55ff', group:'Ducts'},
+  {id:'thoracic_duct_segment',              label:'Thoracic Duct Segment',   color:'#ee00ee', group:'Ducts'},
+  {id:'thoracic_duct_right_lymphatic',      label:'Right Lymphatic Duct',    color:'#bb00bb', group:'Ducts'},
+  {id:'venous_angle_lr',                    label:'Venous Angle L/R',        color:'#880088', group:'Ducts'},
+  {id:'tracer_injection_overlay',           label:'Tracer Injection',        color:'#ff3333', group:'Tracer'},
+];
+// REGIONS is a live mutable copy — add/remove/rename operates on this
+let REGIONS = DEFAULT_REGIONS.map(r=>({...r}));
+// REGION_IDX is rebuilt whenever REGIONS changes
+function rebuildIdx(){
+  Object.keys(REGION_IDX).forEach(k=>delete REGION_IDX[k]);
+  REGIONS.forEach((r,i)=>REGION_IDX[r.id]=i);
+}
+const REGION_IDX={};
+rebuildIdx();
+
+// Unassigned = black,  Selected = vivid orange
+const BLACK   = [0.04, 0.04, 0.04];
+const SELECTED= [1.0,  0.35, 0.05];
+
+// ═══════════════════════════════════════════════════════════
+// GRAPH GLOBALS (set after file load)
+// ═══════════════════════════════════════════════════════════
+let VERTS,EDGES,ADJ,N;
+let renderer,scene,camera,nodePts,eLines,nodeGeom,colArr,orbit;
+let EXTH, TARGET;
+
+// ═══════════════════════════════════════════════════════════
+// INIT GRAPH
+// ═══════════════════════════════════════════════════════════
+function initGraph(){
+  try{
+    const {parsed:vp,cx,cy,cz,cl}=files.v;
+    const {parsed:ep,cf,ct}=files.e;
+    VERTS=vp.rows.map(r=>[parseFloat(r[cx]),parseFloat(r[cy]),parseFloat(r[cz]),cl?parseInt(r[cl])||0:0]);
+    EDGES=ep.rows.map(r=>[parseInt(r[cf])-1,parseInt(r[ct])-1]).filter(([a,b])=>!isNaN(a)&&!isNaN(b));
+    N=VERTS.length;
+    ADJ=Array.from({length:N},()=>[]);
+    for(const [a,b] of EDGES){ADJ[a].push(b);ADJ[b].push(a);}
+
+    document.getElementById('upload-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('graph-stats').textContent=`${N} nodes · ${EDGES.length} edges`;
+    document.getElementById('st-n').textContent=N;
+    document.getElementById('prog-text').textContent=`0 / ${N} assigned`;
+
+    buildScene();
+    initState();
+  } catch(err){
+    document.getElementById('load-err').textContent='Error: '+err.message;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// THREE.JS SCENE
+// ═══════════════════════════════════════════════════════════
+function buildScene(){
+  const glc=document.getElementById('gl');
+  renderer=new THREE.WebGLRenderer({canvas:glc,antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setClearColor(0xf8fafc);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(45,1,1,25000);
+
+  const xs=VERTS.map(v=>v[0]),zs=VERTS.map(v=>v[2]),ys=VERTS.map(v=>v[1]);
+  const mnx=Math.min(...xs),mxx=Math.max(...xs);
+  const mnz=Math.min(...zs),mxz=Math.max(...zs);
+  const mny=Math.min(...ys),mxy=Math.max(...ys);
+  EXTH=mxz-mnz;
+  TARGET=new THREE.Vector3((mnx+mxx)/2,(mnz+mxz)/2,(mny+mxy)/2);
+
+  // nodes
+  nodeGeom=new THREE.BufferGeometry();
+  const pos=new Float32Array(N*3);
+  colArr=new Float32Array(N*3);
+  const sz=new Float32Array(N);
+  VERTS.forEach((v,i)=>{pos[i*3]=v[0];pos[i*3+1]=v[2];pos[i*3+2]=v[1];sz[i]=v[3]?7:4;});
+  nodeGeom.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  nodeGeom.setAttribute('color',   new THREE.BufferAttribute(colArr,3));
+  nodeGeom.setAttribute('size',    new THREE.BufferAttribute(sz,1));
+  nodePts=new THREE.Points(nodeGeom,new THREE.ShaderMaterial({
+    vertexColors:true,transparent:true,depthWrite:false,
+    vertexShader:`attribute float size;varying vec3 vC;
+      void main(){vC=color;vec4 mv=modelViewMatrix*vec4(position,1.);
+      gl_PointSize=clamp(size*(700./-mv.z),3.,24.);gl_Position=projectionMatrix*mv;}`,
+    fragmentShader:`varying vec3 vC;
+      void main(){vec2 u=gl_PointCoord-.5;if(length(u)>.5)discard;
+      gl_FragColor=vec4(vC,smoothstep(.5,.3,length(u)));}`
+  }));
+  scene.add(nodePts);
+
+  // edges
+  const ep=new Float32Array(EDGES.length*6);
+  EDGES.forEach((e,i)=>{
+    ep[i*6]=VERTS[e[0]][0];ep[i*6+1]=VERTS[e[0]][2];ep[i*6+2]=VERTS[e[0]][1];
+    ep[i*6+3]=VERTS[e[1]][0];ep[i*6+4]=VERTS[e[1]][2];ep[i*6+5]=VERTS[e[1]][1];
+  });
+  const eg=new THREE.BufferGeometry();
+  eg.setAttribute('position',new THREE.BufferAttribute(ep,3));
+  eLines=new THREE.LineSegments(eg,new THREE.LineBasicMaterial({color:0xaabbcc,transparent:true,opacity:0.5}));
+  scene.add(eLines);
+
+  // orbit
+  orbit={r:EXTH*1.8,theta:Math.PI,phi:Math.PI/2,target:TARGET.clone()};
+  updateCam();
+  onResize();
+  (function loop(){requestAnimationFrame(loop);renderer.render(scene,camera);})();
+}
+
+// ═══════════════════════════════════════════════════════════
+// CAMERA
+// ═══════════════════════════════════════════════════════════
+function updateCam(){
+  const {r,theta,phi}=orbit;
+  camera.position.copy(orbit.target).add(new THREE.Vector3(
+    r*Math.sin(phi)*Math.sin(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.cos(theta)));
+  camera.lookAt(orbit.target);
+}
+function resetCam(){orbit.theta=Math.PI;orbit.phi=Math.PI/2;orbit.r=EXTH*1.8;orbit.target.copy(TARGET);updateCam();}
+function sideView(){orbit.theta=Math.PI/2;orbit.phi=Math.PI/2;updateCam();}
+function topView(){orbit.theta=Math.PI;orbit.phi=.05;updateCam();}
+
+// ═══════════════════════════════════════════════════════════
+// ANNOTATOR STATE & INTERACTION
+// ═══════════════════════════════════════════════════════════
+const S={labels:null,selected:new Set(),lassoPts:[],history:[],activeR:0,mode:'rotate',showEdges:true};
+
+function initState(){
+  S.labels=new Int16Array(N).fill(-1);
+  S.selected.clear();S.lassoPts=[];S.history=[];S.activeR=0;
+  // Auto-assign all isLymphNode=1 nodes to the lymph_node region
+  const lymphIdx = REGION_IDX['lymph_node'];
+  for(let i=0;i<N;i++){
+    if(VERTS[i][3]===1) S.labels[i]=lymphIdx;
+  }
+  S.activeR = lymphIdx;   // start with Lymph Node selected
+
+  // Apply pre-loaded annotation CSV if provided (overrides lymph auto-assign)
+  applyAnnotationsCSV();
+
+  refreshColors();buildSidebar();updateUI();setMode('rotate');
+  setupIO();
+}
+
+function setupIO(){
+  const glc=document.getElementById('gl');
+  const lo=document.getElementById('lasso-overlay');
+  const lctx=lo.getContext('2d');
+  const rc=new THREE.Raycaster();
+
+  function pick(e){
+    const r=glc.getBoundingClientRect();
+    const mx=e.clientX-r.left, my=e.clientY-r.top;
+
+    // Scale world-space threshold with camera distance so the candidate
+    // net stays consistent regardless of zoom level
+    rc.params.Points.threshold = Math.max(4, orbit.r * 0.012);
+    rc.setFromCamera({x:(mx/r.width)*2-1, y:-(my/r.height)*2+1}, camera);
+    const hits = rc.intersectObject(nodePts);
+    if (!hits.length) return -1;
+
+    // Refine: pick the candidate whose rendered circle actually covers the cursor.
+    // The shader formula is: pixelRadius = clamp(size * 700 / depth, 3, 24) / 2
+    let bestIdx=-1, bestDist=Infinity;
+    for (const h of hits) {
+      const sp = spt(h.index);
+      const screenDist = Math.hypot(sp.x - mx, sp.y - my);
+      const sz = nodeGeom ? nodeGeom.attributes.size.array[h.index] : 4;
+      const visualR = Math.min(Math.max(sz * 700 / h.distance, 3), 24) * 0.5;
+      if (screenDist <= visualR + 2 && screenDist < bestDist) {
+        bestDist = screenDist;
+        bestIdx = h.index;
+      }
+    }
+    return bestIdx;
+  }
+  function spt(i){
+    const v=new THREE.Vector3(VERTS[i][0],VERTS[i][2],VERTS[i][1]).project(camera);
+    const r=glc.getBoundingClientRect();
+    return{x:(v.x+1)/2*r.width,y:(1-v.y)/2*r.height};
+  }
+
+  // expose for missed-panel
+  window._spt=spt;
+
+  function drawLasso(){
+    lctx.clearRect(0,0,lo.width,lo.height);
+    const pts=S.lassoPts;if(!pts.length)return;
+    lctx.beginPath();lctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++)lctx.lineTo(pts[i].x,pts[i].y);
+    lctx.closePath();
+    lctx.fillStyle='rgba(109,40,217,.07)';lctx.fill();
+    lctx.beginPath();lctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++)lctx.lineTo(pts[i].x,pts[i].y);
+    lctx.closePath();
+    lctx.strokeStyle='rgba(124,58,237,.85)';lctx.lineWidth=1.5;lctx.setLineDash([5,3]);lctx.stroke();
+    pts.forEach((p,i)=>{
+      lctx.beginPath();lctx.arc(p.x,p.y,i===0?5:3.5,0,Math.PI*2);
+      lctx.fillStyle=i===0?'#7c3aed':'rgba(124,58,237,.75)';lctx.fill();
+      lctx.strokeStyle='#fff';lctx.lineWidth=1;lctx.setLineDash([]);lctx.stroke();
+    });
+  }
+  window._drawLasso=drawLasso;
+  window._clearLasso=()=>{lctx.clearRect(0,0,lo.width,lo.height);};
+
+  // orbit
+  let drag=false,pan=false,prev={x:0,y:0};
+  let orbitConstraint='free';  // 'free' | 'xy' | 'yz' | 'zx'
+
+  window.setConstraint = function(c) {
+    orbitConstraint = c;
+    ['xy','yz','zx','free'].forEach(id=>{
+      const btn=document.getElementById('btn-'+id);
+      if(!btn)return;
+      const active = id===c;
+      btn.style.background    = active ? '#dbeafe' : '';
+      btn.style.borderColor   = active ? '#93c5fd' : '';
+      btn.style.color         = active ? '#1d4ed8' : '';
+    });
+    // snap camera to a clean starting angle for each plane
+    if(c==='xy'){ orbit.phi=Math.PI/2; updateCam(); }
+    if(c==='yz'){ orbit.theta=0;       updateCam(); }
+    if(c==='zx'){ orbit.theta=Math.PI/2; updateCam(); }
+  };
+
+  glc.addEventListener('mousedown',e=>{
+    if(S.mode!=='rotate')return;
+    if(e.button===0)drag=true;if(e.button===2)pan=true;prev={x:e.clientX,y:e.clientY};
+  });
+  window.addEventListener('mouseup',()=>{drag=false;pan=false;});
+  glc.addEventListener('contextmenu',e=>e.preventDefault());
+  glc.addEventListener('mousemove',e=>{
+    const dx=e.clientX-prev.x,dy=e.clientY-prev.y;
+    if(drag&&S.mode==='rotate'){
+      switch(orbitConstraint){
+        case 'xy':  // rotate around Z axis only — vary theta, phi stays at PI/2
+          orbit.theta -= dx*.005;
+          orbit.phi    = Math.PI/2;
+          break;
+        case 'yz':  // rotate in YZ plane — vary phi, theta stays fixed
+          orbit.phi = Math.max(.05, Math.min(Math.PI-.05, orbit.phi+dy*.005));
+          orbit.theta = 0;
+          break;
+        case 'zx':  // rotate in ZX plane — vary phi, theta stays at PI/2
+          orbit.phi = Math.max(.05, Math.min(Math.PI-.05, orbit.phi+dy*.005));
+          orbit.theta = Math.PI/2;
+          break;
+        default:    // free perspective
+          orbit.theta -= dx*.005;
+          orbit.phi    = Math.max(.05, Math.min(Math.PI-.05, orbit.phi+dy*.005));
+      }
+      updateCam();
+    }
+    if(pan&&S.mode==='rotate'){
+      const spd=orbit.r*.0008,dir=new THREE.Vector3();camera.getWorldDirection(dir);
+      const right=new THREE.Vector3().crossVectors(dir,camera.up).normalize();
+      orbit.target.addScaledVector(right,-dx*spd);orbit.target.addScaledVector(camera.up,dy*spd);updateCam();
+    }
+    prev={x:e.clientX,y:e.clientY};
+    if(S.mode==='rotate'){
+      const idx=pick(e);const tt=document.getElementById('tt');
+      if(idx>=0){
+        tt.style.display='block';tt.style.left=e.clientX+13+'px';tt.style.top=e.clientY-4+'px';
+        const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+        const isLymph  = VERTS[idx][3]===1;
+        const lbl      = S.labels[idx];
+        // organ name: only show a real organ region, not the default lymph_node catch-all
+        const organName = (lbl>=0 && lbl!==lymphIdx) ? REGIONS[lbl].label : '—';
+        tt.textContent  = `Node ${idx+1} · Lymph: ${isLymph?'Yes':'No'} · Organ: ${organName}`;
+      } else tt.style.display='none';
+    }
+  });
+  glc.addEventListener('mouseleave',()=>document.getElementById('tt').style.display='none');
+  glc.addEventListener('wheel',e=>{orbit.r=Math.max(100,Math.min(20000,orbit.r+e.deltaY*.9));updateCam();e.preventDefault();},{passive:false});
+
+  // polygon lasso
+  lo.addEventListener('click',e=>{
+    if(S.mode!=='lasso')return;
+    const r=lo.getBoundingClientRect();
+    S.lassoPts.push({x:e.clientX-r.left,y:e.clientY-r.top});
+    drawLasso();updateUI();
+  });
+  lo.addEventListener('dblclick',e=>{if(S.mode!=='lasso')return;finaliseLasso();e.preventDefault();});
+
+  // redo button delegation
+  document.getElementById('region-list').addEventListener('click',function(e){
+    const btn=e.target.closest('.ri-redo');
+    if(!btn)return;
+    e.stopPropagation();
+    const rIdx=parseInt(btn.dataset.ridx);
+    if(!isNaN(rIdx))redoRegion(rIdx);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// COLORS
+// ═══════════════════════════════════════════════════════════
+function h2r(h){return[parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255];}
+const RRGB=REGIONS.map(r=>h2r(r.color));
+
+function refreshColors(){
+  if(!colArr)return;
+  for(let i=0;i<N;i++){
+    const rgb=S.selected.has(i)?SELECTED:S.labels[i]>=0?RRGB[S.labels[i]]:BLACK;
+    colArr[i*3]=rgb[0];colArr[i*3+1]=rgb[1];colArr[i*3+2]=rgb[2];
+  }
+  nodeGeom.attributes.color.needsUpdate=true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LASSO HELPERS
+// ═══════════════════════════════════════════════════════════
+function pip(p,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;
+    if(((yi>p.y)!==(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+function finaliseLasso(){
+  if(S.lassoPts.length<3)return;
+  const poly=S.lassoPts.slice();
+  for(let i=0;i<N;i++)if(pip(window._spt(i),poly))S.selected.add(i);
+  S.lassoPts=[];window._clearLasso&&window._clearLasso();
+  refreshColors();updateUI();
+}
+function doClear(){S.lassoPts=[];S.selected.clear();window._clearLasso&&window._clearLasso();refreshColors();updateUI();}
+
+
+
+// ═══════════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════════
+function pushHist(){S.history.push(S.labels.slice());if(S.history.length>30)S.history.shift();}
+// doFill removed — use Assign Selected instead
+function doAssign(){
+  if(!S.selected.size)return;
+  pushHist();
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+  S.selected.forEach(i=>{
+    // Case 1: completely unassigned → assign to active region
+    if(S.labels[i] < 0){ S.labels[i]=S.activeR; return; }
+    // Case 2: lymph node sitting at its auto-assigned lymph_node region →
+    //   allow override to an organ region so both annotations coexist
+    //   (isLymphNode flag stays in VERTS[i][3]; organ label stored in S.labels)
+    if(VERTS[i][3]===1 && S.labels[i]===lymphIdx && S.activeR!==lymphIdx){
+      S.labels[i]=S.activeR;
+    }
+  });
+  S.selected.clear();
+  // If missed panel is open, reapply missed style so newly-assigned nodes
+  // immediately return to their original size
+  if(document.getElementById('missed-panel').classList.contains('open')){
+    applyMissedStyle();
+    buildMissedList();
+  } else {
+    refreshColors();
+  }
+  updateUI();
+}
+function doUndo(){if(!S.history.length)return;S.labels.set(S.history.pop());S.selected.clear();S.lassoPts=[];window._clearLasso&&window._clearLasso();refreshColors();updateUI();}
+// doAutoDuct removed — no catch-all duct region in new schema
+function toggleEdges(){S.showEdges=!S.showEdges;eLines.visible=S.showEdges;document.getElementById('btn-edges').textContent='Edges '+(S.showEdges?'ON':'OFF');}
+
+function redoRegion(rIdx){
+  pushHist();
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+  for(let i=0;i<N;i++){
+    if(S.labels[i]===rIdx){
+      // If this was a lymph node organ-annotated to rIdx, send it back to lymph_node
+      // rather than leaving it unassigned
+      S.labels[i] = (VERTS[i][3]===1 && rIdx!==lymphIdx) ? lymphIdx : -1;
+    }
+  }
+  S.activeR=rIdx;S.selected.clear();S.lassoPts=[];
+  window._clearLasso&&window._clearLasso();
+  refreshColors();updateUI();setMode('lasso');
+}
+
+function setMode(m){
+  S.mode=m;
+  const lo=document.getElementById('lasso-overlay');
+  lo.className=m==='lasso'?'drawing':'';
+  document.getElementById('gl').style.cursor=m==='lasso'?'default':'grab';
+  document.getElementById('btn-rotate').className='btn btn-rotate'+(m==='rotate'?' active-mode':'');
+  document.getElementById('btn-lasso').className ='btn btn-lasso'+(m==='lasso'?' active-mode':'');
+  const badge=document.getElementById('mode-badge');
+  badge.textContent=m==='rotate'?'Perspective':'Draw Lasso';
+  badge.className=m==='rotate'?'badge-rotate':'badge-lasso';
+  document.getElementById('hint').textContent=m==='rotate'
+    ?'Left-drag: Rotate · Right-drag: Pan · Scroll: Zoom'
+    :'Click to add polygon points · Double-click to close & select · Enter to confirm';
+  if(m==='rotate'){S.lassoPts=[];window._clearLasso&&window._clearLasso();}
+}
+
+function doExport(){
+  const regionIds  = REGIONS.map(r=>r.id);
+  const lymphRIdx  = REGION_IDX['lymph_node'] ?? -1;
+  // No separate is_lymph_node column — lymph_node region column already captures it
+  const header = ['node_number',...regionIds].join(',');
+
+  const rows = [];
+  for(let i=0;i<N;i++){
+    const nodeNum  = i+1;
+    const isLymph  = VERTS[i][3];
+    const labelIdx = S.labels[i];
+
+    const regionCols = regionIds.map((id, ri) =>
+      ri === lymphRIdx ? isLymph           // lymph_node col = isLymph flag
+                       : (labelIdx===ri ? 1 : 0)
+    );
+
+    rows.push([nodeNum, ...regionCols].join(','));
+  }
+
+  const csv = [header,...rows].join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lymph_region_labels.csv';
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════════════════════
+let activeGroupFilter = 'All';   // 'All' or a group name
+
+function setGroupFilter(g) {
+  activeGroupFilter = g;
+  buildSidebar();
+  updateUI();
+}
+
+function buildSidebar(){
+  const el=document.getElementById('region-list');
+
+  // ── Group filter tabs ──────────────────────────────────────
+  const allGroups = [...new Set(REGIONS.map(r => r.group))];
+  let html = `<div id="group-filter-bar">
+    <button class="gft ${activeGroupFilter==='All'?'gft-active':''}" onclick="setGroupFilter('All')">All</button>`;
+  allGroups.forEach(g => {
+    const safe = g.replace(/'/g,"\\'");
+    html += `<button class="gft ${activeGroupFilter===g?'gft-active':''}" onclick="setGroupFilter('${safe}')">${g}</button>`;
+  });
+  html += `</div>`;
+
+  // ── Region rows (filtered by active group) ─────────────────
+  const grps={};
+  REGIONS.forEach((r,i)=>{
+    if(activeGroupFilter !== 'All' && r.group !== activeGroupFilter) return;
+    if(!grps[r.group])grps[r.group]=[];grps[r.group].push({r,i});
+  });
+
+  // Always include Lymph Nodes group so the preselected region is always reachable
+  if(activeGroupFilter !== 'All') {
+    const lymphRegion = REGIONS.find(r => r.id === 'lymph_node');
+    const lymphIdx    = lymphRegion ? REGIONS.indexOf(lymphRegion) : -1;
+    if(lymphRegion && !grps['Lymph Nodes']) {
+      grps['Lymph Nodes'] = [{r: lymphRegion, i: lymphIdx}];
+    }
+  }
+
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+
+  for(const [g,items] of Object.entries(grps)){
+    html+=`<div class="grp-title">${g}</div>`;
+    items.forEach(({r,i})=>{
+      // Count all nodes assigned to this region (lymph nodes included for organ regions)
+      const cnt = S.labels ? Array.from(S.labels).filter(l => l===i).length : 0;
+      // For lymph_node region, show how many are still at default vs moved to organs
+      const isLymphR = i === lymphIdx;
+      html+=`<div class="region-item ${i===S.activeR?'active':''} ${cnt?'has-nodes':''}"
+               style="--rc:${r.color}" onclick="setActive(${i})">
+               <div class="ri-swatch"></div>
+               <span class="ri-label">${r.label}${isLymphR?' <span style="font-size:9px;opacity:.6;font-weight:400">(auto)</span>':''}</span>
+               <span class="ri-count">${cnt}</span>
+               <button class="ri-redo" data-ridx="${i}" title="Clear and redo this region">↺</button>
+             </div>`;
+    });
+  }
+  el.innerHTML=html;
+}
+function setActive(i){
+  S.activeR=i;
+  buildSidebar();
+  updateUI();
+  // fly to and ring-highlight this region if it has nodes
+  const cnt = Array.from(S.labels).filter(l=>l===i).length;
+  if(cnt>0) focusRegion(i);
+  else clearFocus();
+}
+
+function updateUI(){
+  buildSidebar();
+  if(!S.labels)return;
+
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+
+  // ── Overall assignment progress (non-lymph nodes only) ──────────────
+  let totalNonLymph=0, assignedNonLymph=0;
+  for(let i=0;i<N;i++){
+    if(VERTS[i][3]!==1){
+      totalNonLymph++;
+      if(S.labels[i]>=0) assignedNonLymph++;
+    }
+  }
+  const allPct = totalNonLymph ? assignedNonLymph/totalNonLymph*100 : 0;
+  document.getElementById('prog-bar').style.width=allPct+'%';
+  document.getElementById('prog-text').textContent=`${assignedNonLymph} / ${totalNonLymph} (${Math.round(allPct)}%)`;
+
+  // ── Lymph → organ annotation (how many lymph nodes have been
+  //   moved from the auto lymph_node region to a specific organ) ──
+  let totalLymph=0, lymphOrganAnnotated=0;
+  for(let i=0;i<N;i++){
+    if(VERTS[i][3]===1){
+      totalLymph++;
+      if(S.labels[i]>=0 && S.labels[i]!==lymphIdx) lymphOrganAnnotated++;
+    }
+  }
+  const lymphPct = totalLymph ? lymphOrganAnnotated/totalLymph*100 : 0;
+  document.getElementById('prog-bar-lymph').style.width=lymphPct+'%';
+  document.getElementById('prog-lbl-lymph').textContent=`Lymph (${totalLymph}) → Organ Region`;
+  document.getElementById('prog-text-lymph').textContent=
+    `${lymphOrganAnnotated} / ${totalLymph} organ-annotated`;
+
+  // Status bar
+  document.getElementById('st-a').textContent=assignedNonLymph;
+  document.getElementById('st-s').textContent=S.selected.size;
+  document.getElementById('st-lp').textContent=S.lassoPts.length;
+  document.getElementById('st-r').textContent=REGIONS[S.activeR].label;
+  const lc=document.getElementById('lasso-ctr');
+  if(S.lassoPts.length){lc.style.display='inline';lc.textContent=S.lassoPts.length+' pts';}
+  else lc.style.display='none';
+
+  // Sel-info hint
+  const si=document.getElementById('sel-info');
+  if(S.selected.size){
+    // Count nodes that will actually change label
+    const willAssign = [...S.selected].filter(i=>{
+      if(S.labels[i]<0) return true;
+      // lymph node at default lymph_node label → can be moved to organ
+      if(VERTS[i][3]===1 && S.labels[i]===lymphIdx && S.activeR!==lymphIdx) return true;
+      return false;
+    }).length;
+    si.textContent = willAssign
+      ? `${willAssign} node${willAssign>1?'s':''} will be assigned → click Assign Selected`
+      : `Selection already fully assigned to this region`;
+  }
+  else if(S.lassoPts.length) si.textContent=`${S.lassoPts.length} lasso pts — double-click to close`;
+  else si.textContent='Active: '+REGIONS[S.activeR].label+(S.mode==='lasso'?' · click to add points':'');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MISSED NODES PANEL
+// ═══════════════════════════════════════════════════════════
+const CPALS=['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#6366f1','#84cc16','#e879f9'];
+let missedC=[],isoActive=false;
+
+function findClusters(){
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+  // "pending" = unassigned OR lymph node still sitting at its auto lymph_node default
+  function isPending(i){ return S.labels[i]<0 || (VERTS[i][3]===1 && S.labels[i]===lymphIdx); }
+  const unset=new Set();
+  for(let i=0;i<N;i++) if(isPending(i)) unset.add(i);
+  const vis=new Set();const clusters=[];
+  for(const start of unset){
+    if(vis.has(start))continue;
+    const cl=[],q=[start];vis.add(start);
+    while(q.length){const n=q.shift();cl.push(n);for(const nb of ADJ[n])if(!vis.has(nb)&&unset.has(nb)){vis.add(nb);q.push(nb);}}
+    clusters.push(cl);
+  }
+  return clusters.sort((a,b)=>b.length-a.length);
+}
+function centroid(nodes){
+  let x=0,y=0,z=0;
+  for(const i of nodes){x+=VERTS[i][0];y+=VERTS[i][2];z+=VERTS[i][1];}
+  return new THREE.Vector3(x/nodes.length,y/nodes.length,z/nodes.length);
+}
+// Saved original sizes (restored when missed panel closes)
+let origSizes = null;
+
+function saveSizes(){
+  const sa=nodeGeom.attributes.size;
+  origSizes=sa.array.slice();
+}
+function restoreSizes(){
+  if(!origSizes)return;
+  nodeGeom.attributes.size.array.set(origSizes);
+  nodeGeom.attributes.size.needsUpdate=true;
+  origSizes=null;
+}
+
+function applyMissedStyle(){
+  const sa=nodeGeom.attributes.size;
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+  function isPending(i){ return S.labels[i]<0 || (VERTS[i][3]===1 && S.labels[i]===lymphIdx); }
+
+  // Step 1: restore ALL nodes to their original sizes unconditionally.
+  if(origSizes){
+    for(let i=0;i<N;i++) sa.array[i]=origSizes[i];
+  }
+
+  // Step 2: prune clusters — remove nodes that are no longer pending
+  missedC.forEach(c=>{ c.nodes=c.nodes.filter(i=>isPending(i)); });
+  missedC=missedC.filter(c=>c.nodes.length>0);
+
+  // Step 3: enlarge still-pending missed nodes; lymph nodes use lymph size baseline
+  const stillMissed=new Set();
+  missedC.forEach(c=>c.nodes.forEach(i=>stillMissed.add(i)));
+  for(const i of stillMissed){
+    // lymph nodes keep their larger baseline even when just "pending" organ annotation
+    const base = VERTS[i][3]===1 ? Math.max(origSizes?origSizes[i]:7, 7) : 4;
+    sa.array[i] = Math.max(base, 16);
+  }
+
+  sa.needsUpdate=true;
+
+  // Step 4: refresh colors (assigned=region color, pending=black)
+  refreshColors();
+}
+
+function runMissed(){
+  if(isoActive)toggleIso();
+  if(!origSizes) saveSizes();
+  const raw=findClusters();
+  missedC=raw.map((nodes,i)=>({nodes,col:CPALS[i%CPALS.length]}));
+  applyMissedStyle();
+  const total=missedC.reduce((s,c)=>s+c.nodes.length,0);
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+  const totalLymphPending=missedC.reduce((s,c)=>s+c.nodes.filter(i=>VERTS[i][3]===1).length,0);
+  document.getElementById('mp-summary').textContent=
+    total===0?'✓ All nodes organ-annotated — complete!'
+    :`${total} pending across ${missedC.length} cluster${missedC.length>1?'s':''}${totalLymphPending?' ('+totalLymphPending+' lymph nodes)':''}`;
+  const list=document.getElementById('mp-list');
+  if(!missedC.length){list.innerHTML='<div style="padding:16px;font-size:12px;color:#16a34a;text-align:center">✓ All nodes organ-annotated</div>';return;}
+  list.innerHTML=missedC.map((c,i)=>{
+    const lc=c.nodes.filter(n=>VERTS[n][3]===1).length;
+    const tag=lc?` <span style="font-size:9px;background:#fff0f6;color:#ff0066;border-radius:8px;padding:1px 6px;font-weight:700">💗 ${lc} lymph</span>`:'';
+    return`<div class="mc-row" id="mc-${i}" style="--cc:#222" onclick="focusCluster(${i})">
+       <div class="mc-dot" style="background:#222;width:12px;height:12px;border-radius:3px"></div>
+       <div class="mc-info">
+         <div class="mc-title">Cluster ${i+1} &nbsp;·&nbsp; ${c.nodes.length} node${c.nodes.length>1?'s':''}${tag}</div>
+         <div class="mc-sub">Enlarged nodes — click to fly here</div>
+       </div>
+       <button class="mc-go" onclick="event.stopPropagation();focusCluster(${i})">Go →</button>
+     </div>`;
+  }).join('');
+}
+function focusCluster(i){
+  document.querySelectorAll('.mc-row').forEach(r=>r.classList.remove('focused'));
+  const row=document.getElementById('mc-'+i);if(row)row.classList.add('focused');
+  orbit.target.copy(centroid(missedC[i].nodes));
+  orbit.r=Math.max(200,EXTH*.35);updateCam();
+}
+function toggleIso(){
+  isoActive=!isoActive;
+  const btn=document.getElementById('btn-iso');
+  if(isoActive){
+    // Build the set of still-pending nodes so they are NOT faded
+    const pendingSet=new Set();
+    missedC.forEach(c=>c.nodes.forEach(i=>pendingSet.add(i)));
+    // Fade only truly-assigned nodes
+    for(let i=0;i<N;i++){
+      if(S.labels[i]>=0 && !pendingSet.has(i)){
+        colArr[i*3]=.92;colArr[i*3+1]=.94;colArr[i*3+2]=.96;
+      }
+    }
+    nodeGeom.attributes.color.needsUpdate=true;
+    btn.textContent='👁 Show All';btn.classList.add('on');
+  } else {
+    applyMissedStyle();
+    btn.textContent='👁 Isolate';btn.classList.remove('on');
+  }
+}
+function buildMissedList(){
+  const total=missedC.reduce((s,c)=>s+c.nodes.length,0);
+  const totalLymphPending=missedC.reduce((s,c)=>s+c.nodes.filter(i=>VERTS[i][3]===1).length,0);
+  document.getElementById('mp-summary').textContent=
+    total===0?'✓ All nodes organ-annotated — complete!'
+    :`${total} pending across ${missedC.length} cluster${missedC.length>1?'s':''}${totalLymphPending?' ('+totalLymphPending+' lymph nodes)':''}`;
+  const list=document.getElementById('mp-list');
+  if(!missedC.length){
+    list.innerHTML='<div style="padding:16px;font-size:12px;color:#16a34a;text-align:center">✓ All nodes organ-annotated</div>';
+    return;
+  }
+  list.innerHTML=missedC.map((c,i)=>{
+    const lc=c.nodes.filter(n=>VERTS[n][3]===1).length;
+    const tag=lc?` <span style="font-size:9px;background:#fff0f6;color:#ff0066;border-radius:8px;padding:1px 6px;font-weight:700">💗 ${lc} lymph</span>`:'';
+    return`<div class="mc-row" id="mc-${i}" style="--cc:#222" onclick="focusCluster(${i})">
+       <div class="mc-dot" style="background:#222;width:12px;height:12px;border-radius:3px"></div>
+       <div class="mc-info">
+         <div class="mc-title">Cluster ${i+1} &nbsp;·&nbsp; ${c.nodes.length} node${c.nodes.length>1?'s':''}${tag}</div>
+         <div class="mc-sub">Enlarged nodes — click to fly here</div>
+       </div>
+       <button class="mc-go" onclick="event.stopPropagation();focusCluster(${i})">Go →</button>
+     </div>`;
+  }).join('');
+}
+function openMissed(){document.getElementById('missed-panel').classList.add('open');runMissed();}
+function closeMissed(){
+  document.getElementById('missed-panel').classList.remove('open');
+  if(isoActive){isoActive=false;document.getElementById('btn-iso').classList.remove('on');document.getElementById('btn-iso').textContent='👁 Isolate';}
+  restoreSizes();
+  missedC=[];refreshColors();updateUI();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RESIZE + KEYBOARD
+// ═══════════════════════════════════════════════════════════
+function onResize(){
+  if(!renderer)return;
+  const w=document.getElementById('gl').parentElement.clientWidth;
+  const h=document.getElementById('gl').parentElement.clientHeight;
+  renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
+  const lo=document.getElementById('lasso-overlay');
+  lo.width=w;lo.height=h;
+  const fo=document.getElementById('focus-overlay');
+  if(fo){fo.width=w;fo.height=h;}
+  window._drawLasso&&window._drawLasso();
+}
+window.addEventListener('resize',onResize);
+
+window.addEventListener('keydown',e=>{
+  if(!S.labels)return;
+  if(e.key==='Enter')finaliseLasso();
+  if(e.key==='Escape')doClear();
+  if(e.key==='r'||e.key==='R')setMode('rotate');
+  if(e.key==='l'||e.key==='L')setMode('lasso');
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){doUndo();e.preventDefault();}
+});
+
+// init sidebar so region list shows before graph loads
+buildSidebar();
+
+// ═══════════════════════════════════════════════════════════
+// ANNOTATION CSV PRE-LOAD
+// ═══════════════════════════════════════════════════════════
+let pendingAnnotations = null;  // parsed before graph loads
+
+function loadAnnotations(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const parsed = parseCSV(ev.target.result);
+    if (!parsed) { setFileErr('a','Could not parse file'); return; }
+    // check it has node_number
+    const nodeCol = findCol(parsed.headers,['node_number','node','id','node_id']);
+    if (!nodeCol) { setFileErr('a',`Need a node_number column. Found: [${parsed.headers.join(', ')}]`); return; }
+    pendingAnnotations = { parsed, nodeCol };
+    setFileOk('a', file.name,
+      `✓ ${parsed.rows.length} rows · ${parsed.headers.length} columns`);
+  };
+  reader.readAsText(file);
+}
+
+function applyAnnotationsCSV() {
+  if (!pendingAnnotations) return;
+  const { parsed, nodeCol } = pendingAnnotations;
+  rebuildIdx();
+  const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+
+  // Old format has a dedicated is_lymph_node column.
+  // New format omits it — the lymph_node region column doubles as the flag.
+  // Try both so either format restores VERTS[i][3] correctly.
+  const isLymphCol  = findCol(parsed.headers, ['is_lymph_node','isLymphNode','islymphnode']);
+  const lymphNodeCol = findCol(parsed.headers, ['lymph_node']);
+  let sizesChanged = false;
+
+  let applied = 0;
+  for (const row of parsed.rows) {
+    const nodeIdx = parseInt(row[nodeCol]) - 1;  // 0-indexed
+    if (isNaN(nodeIdx) || nodeIdx < 0 || nodeIdx >= N) continue;
+
+    // ── Sync isLymphNode flag ────────────────────────────────
+    // Old format: dedicated is_lymph_node column.
+    // New format: lymph_node region column = 1 means this node IS a lymph node.
+    if (isLymphCol || lymphNodeCol) {
+      const flag = isLymphCol
+        ? (parseInt(row[isLymphCol]) || 0)
+        : (parseInt(row[lymphNodeCol]) || 0);   // new format fallback
+      if (VERTS[nodeIdx][3] !== flag) {
+        VERTS[nodeIdx][3] = flag;
+        if (nodeGeom) {
+          nodeGeom.attributes.size.array[nodeIdx] = flag ? 7 : 4;
+          sizesChanged = true;
+        }
+      }
+    }
+
+    // ── Restore region label ─────────────────────────────────
+    // Organ regions take priority over the lymph_node catch-all so a node
+    // with both lymph_node=1 and an organ=1 keeps the organ assignment.
+    let organRegion = -1;
+    let lymphRegion = -1;
+    for (const r of REGIONS) {
+      if (row[r.id] === '1' || row[r.id] === 1) {
+        const ri = REGION_IDX[r.id];
+        if (ri === lymphIdx) lymphRegion = ri;
+        else { organRegion = ri; break; }  // first organ hit wins
+      }
+    }
+    const final = organRegion >= 0 ? organRegion : lymphRegion;
+    if (final >= 0) { S.labels[nodeIdx] = final; applied++; }
+  }
+
+  if (sizesChanged) nodeGeom.attributes.size.needsUpdate = true;
+  console.log('Applied annotations:', applied, 'nodes');
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGION MANAGER
+// ═══════════════════════════════════════════════════════════
+function openRM() {
+  buildRMList();
+  document.getElementById('rm-modal').style.display = 'flex';
+}
+function closeRM() {
+  document.getElementById('rm-modal').style.display = 'none';
+}
+
+function buildRMList() {
+  const el = document.getElementById('rm-list');
+  if (!REGIONS.length) { el.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:8px 0">No regions defined.</div>'; return; }
+
+  const grps = {};
+  REGIONS.forEach((r,i) => { if(!grps[r.group]) grps[r.group]=[]; grps[r.group].push({r,i}); });
+
+  let html = '';
+  for (const [grp, items] of Object.entries(grps)) {
+    html += `<div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;padding:10px 0 4px">${grp}</div>`;
+    items.forEach(({r,i}) => {
+      const lymphIdx = REGION_IDX['lymph_node'] ?? -1;
+      const cnt = S.labels ? Array.from(S.labels).filter(l => l===i).length : 0;
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f8fafc">
+        <div style="width:14px;height:14px;border-radius:3px;background:${r.color};flex-shrink:0"></div>
+        <input value="${r.id}" data-field="id" data-idx="${i}"
+          style="flex:2;font-size:11px;font-family:monospace;padding:4px 7px;border:1px solid #e2e8f0;border-radius:4px;min-width:0"
+          onchange="updateRegion(${i},'id',this.value)">
+        <input value="${r.label}" data-field="label" data-idx="${i}"
+          style="flex:1.5;font-size:12px;padding:4px 7px;border:1px solid #e2e8f0;border-radius:4px;min-width:0"
+          onchange="updateRegion(${i},'label',this.value)">
+        <input value="${r.group}" data-field="group" data-idx="${i}"
+          style="flex:1;font-size:11px;padding:4px 7px;border:1px solid #e2e8f0;border-radius:4px;min-width:0"
+          onchange="updateRegion(${i},'group',this.value)">
+        <input type="color" value="${r.color}" data-idx="${i}"
+          style="width:30px;height:30px;border:1px solid #e2e8f0;border-radius:4px;cursor:pointer;padding:1px;flex-shrink:0"
+          onchange="updateRegion(${i},'color',this.value)">
+        <span style="font-size:10px;color:#94a3b8;min-width:28px;text-align:right">${cnt>0?cnt+' nodes':''}</span>
+        <button onclick="removeRegion(${i})"
+          style="background:none;border:1px solid #fecaca;border-radius:4px;color:#ef4444;cursor:pointer;font-size:12px;padding:3px 8px;flex-shrink:0;white-space:nowrap"
+          ${cnt>0?'title="Has '+cnt+' nodes — will unassign"':''}>✕</button>
+      </div>`;
+    });
+  }
+  el.innerHTML = html;
+}
+
+function updateRegion(idx, field, val) {
+  val = val.trim();
+  if (!val) return;
+  if (field === 'id') {
+    // check uniqueness
+    if (REGIONS.some((r,i)=>i!==idx && r.id===val)) {
+      alert('ID "'+val+'" already exists — choose a different name.'); return;
+    }
+    // remap labels: old idx stays same, just id changes — nothing to remap
+  }
+  REGIONS[idx][field] = val;
+  rebuildIdx();
+  refreshColors();
+  buildSidebar();
+  updateUI();
+  buildRMList();  // re-render list
+}
+
+function removeRegion(idx) {
+  const cnt = S.labels ? Array.from(S.labels).filter(l=>l===idx).length : 0;
+  if (cnt > 0 && !confirm(`"${REGIONS[idx].label}" has ${cnt} assigned nodes — they will become unassigned. Continue?`)) return;
+  // unassign nodes that had this region
+  if (S.labels) {
+    for (let i=0;i<N;i++) {
+      if (S.labels[i] === idx) S.labels[i] = -1;
+      else if (S.labels[i] > idx) S.labels[i]--;  // shift higher indices down
+    }
+    if (S.activeR >= REGIONS.length - 1) S.activeR = Math.max(0, REGIONS.length - 2);
+  }
+  REGIONS.splice(idx, 1);
+  rebuildIdx();
+  // If the removed region's group no longer exists, reset the filter
+  if(activeGroupFilter !== 'All' && !REGIONS.some(r=>r.group===activeGroupFilter)) activeGroupFilter='All';
+  refreshColors();
+  buildSidebar();
+  updateUI();
+  buildRMList();
+}
+
+function addRegion() {
+  const id    = document.getElementById('rm-new-id').value.trim().replace(/\s+/g,'_');
+  const label = document.getElementById('rm-new-label').value.trim();
+  const group = document.getElementById('rm-new-group').value.trim() || 'Custom';
+  const color = document.getElementById('rm-new-color').value;
+  const errEl = document.getElementById('rm-err');
+
+  if (!id)    { errEl.textContent='Variable name is required.'; return; }
+  if (!label) { errEl.textContent='Display label is required.'; return; }
+  if (REGIONS.some(r=>r.id===id)) { errEl.textContent=`"${id}" already exists.`; return; }
+
+  errEl.textContent = '';
+  REGIONS.push({id, label, color, group});
+  rebuildIdx();
+  // clear inputs
+  document.getElementById('rm-new-id').value='';
+  document.getElementById('rm-new-label').value='';
+  document.getElementById('rm-new-group').value='';
+  buildSidebar();
+  updateUI();
+  buildRMList();
+}
+
+// close modal on backdrop click
+document.getElementById('rm-modal').addEventListener('click', function(e){
+  if(e.target===this) closeRM();
+});
+
+// ═══════════════════════════════════════════════════════════
+// REGION FOCUS — fly camera + draw highlight ring
+// ═══════════════════════════════════════════════════════════
+let focusRaf = null;        // animation frame for ring pulse
+let focusActive = false;
+let focusRegionIdx = -1;
+
+let focusSavedSizes = null;   // snapshot of sizes before enlarging focused nodes
+let focusNodeList   = [];     // which nodes are currently enlarged by focus
+
+function enlargeFocusNodes(nodes) {
+  // save all sizes only once (don't overwrite if missed-panel already saved)
+  const sa = nodeGeom.attributes.size;
+  focusSavedSizes = sa.array.slice();
+  focusNodeList   = nodes.slice();
+  for (const i of nodes) sa.array[i] = Math.max(sa.array[i], 14);
+  sa.needsUpdate = true;
+}
+
+function restoreFocusNodes() {
+  if (!focusSavedSizes) return;
+  const sa = nodeGeom.attributes.size;
+  // only restore the nodes we enlarged — don't touch missed-panel sizes
+  for (const i of focusNodeList) sa.array[i] = focusSavedSizes[i];
+  sa.needsUpdate = true;
+  focusSavedSizes = null;
+  focusNodeList   = [];
+}
+
+function focusRegion(rIdx) {
+  // collect nodes for this region
+  const nodes = [];
+  for (let i = 0; i < N; i++) if (S.labels[i] === rIdx) nodes.push(i);
+  if (!nodes.length) return;
+
+  // if clicking the already-focused region, toggle off
+  if (focusActive && focusRegionIdx === rIdx) {
+    clearFocus(); return;
+  }
+
+  // restore any previously enlarged nodes before switching
+  restoreFocusNodes();
+
+  focusActive = true;
+  focusRegionIdx = rIdx;
+
+  // enlarge this region's nodes
+  enlargeFocusNodes(nodes);
+
+  // ── fly camera to centroid ──────────────────────────────
+  let sx=0,sy=0,sz=0;
+  for (const i of nodes) { sx+=VERTS[i][0]; sy+=VERTS[i][2]; sz+=VERTS[i][1]; }
+  const cx=sx/nodes.length, cy=sy/nodes.length, cz=sz/nodes.length;
+  const cent = new THREE.Vector3(cx, cy, cz);
+
+  // compute bounding radius of the cluster in world space
+  let maxDist = 0;
+  for (const i of nodes) {
+    const dx=VERTS[i][0]-cx, dy=VERTS[i][2]-cy, dz=VERTS[i][1]-cz;
+    maxDist = Math.max(maxDist, Math.sqrt(dx*dx+dy*dy+dz*dz));
+  }
+
+  // smooth camera pan using lerp
+  const startTarget = orbit.target.clone();
+  const startR      = orbit.r;
+  const endR        = Math.max(maxDist * 4, EXTH * 0.25);
+  let t = 0;
+  function animateCam() {
+    t = Math.min(t + 0.04, 1);
+    const ease = 1 - Math.pow(1 - t, 3);  // ease-out cubic
+    orbit.target.lerpVectors(startTarget, cent, ease);
+    orbit.r = startR + (endR - startR) * ease;
+    updateCam();
+    if (t < 1) requestAnimationFrame(animateCam);
+  }
+  animateCam();
+
+  // ── start ring animation ─────────────────────────────────
+  const color = REGIONS[rIdx].color;
+  const label = REGIONS[rIdx].label;
+  animateFocusRing(nodes, color, label);
+}
+
+function animateFocusRing(nodes, color, label) {
+  const foc = document.getElementById('focus-overlay');
+  const lbl = document.getElementById('focus-label');
+  const fctx = foc.getContext('2d');
+  let phase = 0;
+
+  function drawRing() {
+    if (!focusActive) { fctx.clearRect(0,0,foc.width,foc.height); lbl.style.display='none'; return; }
+
+    fctx.clearRect(0,0,foc.width,foc.height);
+    phase += 0.03;
+
+    // project all nodes to screen, get bounding circle
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for (const i of nodes) {
+      const v = new THREE.Vector3(VERTS[i][0],VERTS[i][2],VERTS[i][1]).project(camera);
+      const sx = (v.x+1)/2 * foc.width;
+      const sy = (1-v.y)/2 * foc.height;
+      minX=Math.min(minX,sx); maxX=Math.max(maxX,sx);
+      minY=Math.min(minY,sy); maxY=Math.max(maxY,sy);
+    }
+
+    const cx = (minX+maxX)/2;
+    const cy = (minY+maxY)/2;
+    const rx = (maxX-minX)/2 + 28;   // ellipse radii with padding
+    const ry = (maxY-minY)/2 + 28;
+
+    // pulsing opacity
+    const alpha = 0.55 + 0.25 * Math.sin(phase);
+
+    // parse hex color for rgba
+    const r=parseInt(color.slice(1,3),16);
+    const g=parseInt(color.slice(3,5),16);
+    const b=parseInt(color.slice(5,7),16);
+
+    // outer glow ring
+    fctx.save();
+    fctx.translate(cx, cy);
+    fctx.scale(1, ry/rx);
+    fctx.beginPath();
+    fctx.arc(0, 0, rx+6, 0, Math.PI*2);
+    fctx.strokeStyle = `rgba(${r},${g},${b},${alpha*0.35})`;
+    fctx.lineWidth = 10;
+    fctx.setLineDash([]);
+    fctx.stroke();
+    fctx.restore();
+
+    // main dashed ring
+    fctx.save();
+    fctx.translate(cx, cy);
+    fctx.scale(1, ry/rx);
+    fctx.beginPath();
+    fctx.arc(0, 0, rx, 0, Math.PI*2);
+    fctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+    fctx.lineWidth = 2.5;
+    fctx.setLineDash([8, 5]);
+    fctx.lineDashOffset = -phase * 12;
+    fctx.stroke();
+    fctx.restore();
+
+    // label below ring
+    lbl.style.display = 'block';
+    lbl.style.left    = cx + 'px';
+    lbl.style.top     = (cy + ry + 10) + 'px';
+    lbl.style.color   = color;
+    lbl.style.borderColor = color + '66';
+    lbl.textContent   = label;
+
+    focusRaf = requestAnimationFrame(drawRing);
+  }
+  if (focusRaf) cancelAnimationFrame(focusRaf);
+  drawRing();
+}
+
+function clearFocus() {
+  focusActive = false;
+  focusRegionIdx = -1;
+  if (focusRaf) { cancelAnimationFrame(focusRaf); focusRaf=null; }
+  const foc=document.getElementById('focus-overlay');
+  foc.getContext('2d').clearRect(0,0,foc.width,foc.height);
+  document.getElementById('focus-label').style.display='none';
+  // restore node sizes
+  restoreFocusNodes();
+}
+
+// resize focus overlay too
+const _origResize = onResize;
+onResize = function() {
+  _origResize();
+  const foc=document.getElementById('focus-overlay');
+  const w=document.getElementById('gl').parentElement.clientWidth;
+  const h=document.getElementById('gl').parentElement.clientHeight;
+  foc.width=w; foc.height=h;
+};
+
+// clear focus when user starts rotating (interacting with scene)
+document.getElementById('gl').addEventListener('mousedown', () => {
+  if (focusActive) clearFocus();
+});
+</script>
+</body>
+</html>
